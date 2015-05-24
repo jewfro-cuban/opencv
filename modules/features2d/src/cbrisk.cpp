@@ -35,7 +35,9 @@
  *********************************************************************/
 
 /*
- BRISK - Binary Robust Invariant Scalable Keypoints
+ CBRISK - Customized Binary Robust Invariant Scalable Keypoints
+ Version of BRISK that works on given customized pattern points without additional orientation detection
+
  Reference implementation of
  [1] Stefan Leutenegger,Margarita Chli and Roland Siegwart, BRISK:
  Binary Robust Invariant Scalable Keypoints, in Proceedings of
@@ -51,18 +53,16 @@
 namespace cv
 {
 
-class BRISK_Impl : public BRISK
+class CBRISK_Impl : public CBRISK
 {
 public:
-    explicit BRISK_Impl(int thresh=30, int octaves=3, float patternScale=1.0f);
-    // custom setup
-    explicit BRISK_Impl(const std::vector<float> &radiusList, const std::vector<int> &numberList,
-        float dMax=5.85f, float dMin=8.2f, const std::vector<int> indexChange=std::vector<int>());
-	// another custom setup (test)
-	explicit BRISK_Impl(double dummy);
+	explicit CBRISK_Impl(const std::vector<float> &patternPointsX,
+						 const std::vector<float> &patternPointsY,
+						 const std::vector<float> &patternPointsSigma,
+						 const std::vector<float> &pairs_i,
+						 const std::vector<float> &pairs_j);
 
-	
-    virtual ~BRISK_Impl();
+	virtual ~CBRISK_Impl();
 
     int descriptorSize() const
     {
@@ -146,7 +146,7 @@ protected:
 
 
 // a layer in the Brisk detector pyramid
-class CV_EXPORTS BriskLayer
+class CV_EXPORTS CBriskLayer
 {
 public:
   // constructor arguments
@@ -156,9 +156,9 @@ public:
     static const int TWOTHIRDSAMPLE = 1;
   };
   // construct a base layer
-  BriskLayer(const cv::Mat& img, float scale = 1.0f, float offset = 0.0f);
+  CBriskLayer(const cv::Mat& img, float scale = 1.0f, float offset = 0.0f);
   // derive a layer
-  BriskLayer(const BriskLayer& layer, int mode);
+  CBriskLayer(const CBriskLayer& layer, int mode);
 
   // Agast without non-max suppression
   void
@@ -218,12 +218,12 @@ private:
   int pixel_9_16_[25];
 };
 
-class CV_EXPORTS BriskScaleSpace
+class CV_EXPORTS CBriskScaleSpace
 {
 public:
   // construct telling the octaves number:
-  BriskScaleSpace(int _octaves = 3);
-  ~BriskScaleSpace();
+  CBriskScaleSpace(int _octaves = 3);
+  ~CBriskScaleSpace();
 
   // construct the image pyramids
   void
@@ -268,62 +268,38 @@ protected:
 
   // the image pyramids:
   int layers_;
-  std::vector<BriskLayer> pyramid_;
+  std::vector<CBriskLayer> pyramid_;
 
   // some constant parameters:
   static const float safetyFactor_;
   static const float basicSize_;
 };
 
-const float BRISK_Impl::basicSize_ = 12.0f;
-const unsigned int BRISK_Impl::scales_ = 64;
-const float BRISK_Impl::scalerange_ = 30.f; // 40->4 Octaves - else, this needs to be adjusted...
-const unsigned int BRISK_Impl::n_rot_ = 1024; // discretization of the rotation look-up
+const float CBRISK_Impl::basicSize_ = 12.0f;
+const unsigned int CBRISK_Impl::scales_ = 64;
+const float CBRISK_Impl::scalerange_ = 30.f; // 40->4 Octaves - else, this needs to be adjusted...
+const unsigned int CBRISK_Impl::n_rot_ = 1024; // discretization of the rotation look-up
 
-const float BriskScaleSpace::safetyFactor_ = 1.0f;
-const float BriskScaleSpace::basicSize_ = 12.0f;
+const float CBriskScaleSpace::safetyFactor_ = 1.0f;
+const float CBriskScaleSpace::basicSize_ = 12.0f;
 
-// constructors
-BRISK_Impl::BRISK_Impl(int thresh, int octaves_in, float patternScale)
+// constructors 
+
+// Construct using custom pattern
+// TODO: preatify the function api - what are possible data type that pass in the cv-python binding ?
+CBRISK_Impl::CBRISK_Impl(const std::vector<float> &patternPointsX,
+						 const std::vector<float> &patternPointsY,
+						 const std::vector<float> &patternPointsSigma,
+						 const std::vector<float> &pairs_i,
+						 const std::vector<float> &pairs_j)
 {
-  threshold = thresh;
-  octaves = octaves_in;
-
-  std::vector<float> rList;
-  std::vector<int> nList;
-
-  // this is the standard pattern found to be suitable also
-  rList.resize(5);
-  nList.resize(5);
-  const double f = 0.85 * patternScale;
-
-  rList[0] = (float)(f * 0.);
-  rList[1] = (float)(f * 2.9);
-  rList[2] = (float)(f * 4.9);
-  rList[3] = (float)(f * 7.4);
-  rList[4] = (float)(f * 10.8);
-
-  nList[0] = 1;
-  nList[1] = 10;
-  nList[2] = 14;
-  nList[3] = 15;
-  nList[4] = 20;
-
-  generateKernel(rList, nList, (float)(5.85 * patternScale), (float)(8.2 * patternScale));
-}
-
-BRISK_Impl::BRISK_Impl(const std::vector<float> &radiusList,
-                       const std::vector<int> &numberList,
-                       float dMax, float dMin,
-                       const std::vector<int> indexChange)
-{
-  generateKernel(radiusList, numberList, dMax, dMin, indexChange);
+  //generateKernel(radiusList, numberList, dMax, dMin, indexChange);
   threshold = 20;
   octaves = 3;
 }
 
 void
-BRISK_Impl::generateKernel(const std::vector<float> &radiusList,
+CBRISK_Impl::generateKernel(const std::vector<float> &radiusList,
                            const std::vector<int> &numberList,
                            float dMax, float dMin,
                            const std::vector<int>& _indexChange)
@@ -449,43 +425,9 @@ BRISK_Impl::generateKernel(const std::vector<float> &radiusList,
 }
 
 
-BRISK_Impl::BRISK_Impl(double dummy)
-{
-	int thresh = 30;
-	int octaves_in = 4;
-	float patternScale = 1.0f;
-
-
-	threshold = thresh;
-	octaves = octaves_in;
-
-	std::vector<float> rList;
-	std::vector<int> nList;
-
-	// this is the standard pattern found to be suitable also
-	rList.resize(5);
-	nList.resize(5);
-	const double f = 0.85 * patternScale;
-
-	rList[0] = (float)(f * 0.);
-	rList[1] = (float)(f * 2.9);
-	rList[2] = (float)(f * 4.9);
-	rList[3] = (float)(f * 7.4);
-	rList[4] = (float)(f * 10.8);
-
-	nList[0] = 1;
-	nList[1] = 10;
-	nList[2] = 14;
-	nList[3] = 15;
-	nList[4] = 20;
-
-	generateKernel(rList, nList, (float)(5.85 * patternScale), (float)(8.2 * patternScale));
-}
-
-
 // simple alternative:
 inline int
-BRISK_Impl::smoothedIntensity(const cv::Mat& image, const cv::Mat& integral, const float key_x,
+CBRISK_Impl::smoothedIntensity(const cv::Mat& image, const cv::Mat& integral, const float key_x,
                                             const float key_y, const unsigned int scale, const unsigned int rot,
                                             const unsigned int point) const
 {
@@ -652,7 +594,7 @@ RoiPredicate(const float minX, const float minY, const float maxX, const float m
 
 // computes the descriptor
 void
-BRISK_Impl::detectAndCompute( InputArray _image, InputArray _mask, std::vector<KeyPoint>& keypoints,
+CBRISK_Impl::detectAndCompute( InputArray _image, InputArray _mask, std::vector<KeyPoint>& keypoints,
                               OutputArray _descriptors, bool useProvidedKeypoints)
 {
   bool doOrientation=true;
@@ -665,7 +607,7 @@ BRISK_Impl::detectAndCompute( InputArray _image, InputArray _mask, std::vector<K
 }
 
 void
-BRISK_Impl::computeDescriptorsAndOrOrientation(InputArray _image, InputArray _mask, std::vector<KeyPoint>& keypoints,
+CBRISK_Impl::computeDescriptorsAndOrOrientation(InputArray _image, InputArray _mask, std::vector<KeyPoint>& keypoints,
                                      OutputArray _descriptors, bool doDescriptors, bool doOrientation,
                                      bool useProvidedKeypoints) const
 {
@@ -839,7 +781,7 @@ BRISK_Impl::computeDescriptorsAndOrOrientation(InputArray _image, InputArray _ma
 }
 
 
-BRISK_Impl::~BRISK_Impl()
+CBRISK_Impl::~CBRISK_Impl()
 {
   delete[] patternPoints_;
   delete[] shortPairs_;
@@ -849,13 +791,13 @@ BRISK_Impl::~BRISK_Impl()
 }
 
 void
-BRISK_Impl::computeKeypointsNoOrientation(InputArray _image, InputArray _mask, std::vector<KeyPoint>& keypoints) const
+CBRISK_Impl::computeKeypointsNoOrientation(InputArray _image, InputArray _mask, std::vector<KeyPoint>& keypoints) const
 {
   Mat image = _image.getMat(), mask = _mask.getMat();
   if( image.type() != CV_8UC1 )
       cvtColor(_image, image, COLOR_BGR2GRAY);
 
-  BriskScaleSpace briskScaleSpace(octaves);
+  CBriskScaleSpace briskScaleSpace(octaves);
   briskScaleSpace.constructPyramid(image);
   briskScaleSpace.getKeypoints(threshold, keypoints);
 
@@ -864,42 +806,42 @@ BRISK_Impl::computeKeypointsNoOrientation(InputArray _image, InputArray _mask, s
 }
 
 // construct telling the octaves number:
-BriskScaleSpace::BriskScaleSpace(int _octaves)
+CBriskScaleSpace::CBriskScaleSpace(int _octaves)
 {
   if (_octaves == 0)
     layers_ = 1;
   else
     layers_ = 2 * _octaves;
 }
-BriskScaleSpace::~BriskScaleSpace()
+CBriskScaleSpace::~CBriskScaleSpace()
 {
 
 }
 // construct the image pyramids
 void
-BriskScaleSpace::constructPyramid(const cv::Mat& image)
+CBriskScaleSpace::constructPyramid(const cv::Mat& image)
 {
 
   // set correct size:
   pyramid_.clear();
 
   // fill the pyramid:
-  pyramid_.push_back(BriskLayer(image.clone()));
+  pyramid_.push_back(CBriskLayer(image.clone()));
   if (layers_ > 1)
   {
-    pyramid_.push_back(BriskLayer(pyramid_.back(), BriskLayer::CommonParams::TWOTHIRDSAMPLE));
+    pyramid_.push_back(CBriskLayer(pyramid_.back(), CBriskLayer::CommonParams::TWOTHIRDSAMPLE));
   }
   const int octaves2 = layers_;
 
   for (uchar i = 2; i < octaves2; i += 2)
   {
-    pyramid_.push_back(BriskLayer(pyramid_[i - 2], BriskLayer::CommonParams::HALFSAMPLE));
-    pyramid_.push_back(BriskLayer(pyramid_[i - 1], BriskLayer::CommonParams::HALFSAMPLE));
+    pyramid_.push_back(CBriskLayer(pyramid_[i - 2], CBriskLayer::CommonParams::HALFSAMPLE));
+    pyramid_.push_back(CBriskLayer(pyramid_[i - 1], CBriskLayer::CommonParams::HALFSAMPLE));
   }
 }
 
 void
-BriskScaleSpace::getKeypoints(const int threshold_, std::vector<cv::KeyPoint>& keypoints)
+CBriskScaleSpace::getKeypoints(const int threshold_, std::vector<cv::KeyPoint>& keypoints)
 {
   // make sure keypoints is empty
   keypoints.resize(0);
@@ -914,7 +856,7 @@ BriskScaleSpace::getKeypoints(const int threshold_, std::vector<cv::KeyPoint>& k
   for (int i = 0; i < layers_; i++)
   {
     // call OAST16_9 without nms
-    BriskLayer& l = pyramid_[i];
+    CBriskLayer& l = pyramid_[i];
     l.getAgastPoints(safeThreshold_, agastPoints[i]);
   }
 
@@ -930,7 +872,7 @@ BriskScaleSpace::getKeypoints(const int threshold_, std::vector<cv::KeyPoint>& k
         continue;
 
       // let's do the subpixel and float scale refinement:
-      BriskLayer& l = pyramid_[0];
+      CBriskLayer& l = pyramid_[0];
       int s_0_0 = l.getAgastScore(point.x - 1, point.y - 1, 1);
       int s_1_0 = l.getAgastScore(point.x, point.y - 1, 1);
       int s_2_0 = l.getAgastScore(point.x + 1, point.y - 1, 1);
@@ -954,7 +896,7 @@ BriskScaleSpace::getKeypoints(const int threshold_, std::vector<cv::KeyPoint>& k
   float x, y, scale, score;
   for (int i = 0; i < layers_; i++)
   {
-    BriskLayer& l = pyramid_[i];
+    CBriskLayer& l = pyramid_[i];
     const size_t num = agastPoints[i].size();
     if (i == layers_ - 1)
     {
@@ -1021,10 +963,10 @@ BriskScaleSpace::getKeypoints(const int threshold_, std::vector<cv::KeyPoint>& k
 
 // interpolated score access with recalculation when needed:
 inline int
-BriskScaleSpace::getScoreAbove(const int layer, const int x_layer, const int y_layer) const
+CBriskScaleSpace::getScoreAbove(const int layer, const int x_layer, const int y_layer) const
 {
   CV_Assert(layer < layers_-1);
-  const BriskLayer& l = pyramid_[layer + 1];
+  const CBriskLayer& l = pyramid_[layer + 1];
   if (layer % 2 == 0)
   { // octave
     const int sixths_x = 4 * x_layer - 1;
@@ -1064,10 +1006,10 @@ BriskScaleSpace::getScoreAbove(const int layer, const int x_layer, const int y_l
   }
 }
 inline int
-BriskScaleSpace::getScoreBelow(const int layer, const int x_layer, const int y_layer) const
+CBriskScaleSpace::getScoreBelow(const int layer, const int x_layer, const int y_layer) const
 {
   CV_Assert(layer);
-  const BriskLayer& l = pyramid_[layer - 1];
+  const CBriskLayer& l = pyramid_[layer - 1];
   int sixth_x;
   int quarter_x;
   float xf;
@@ -1165,7 +1107,7 @@ BriskScaleSpace::getScoreBelow(const int layer, const int x_layer, const int y_l
 }
 
 inline bool
-BriskScaleSpace::isMax2D(const int layer, const int x_layer, const int y_layer)
+CBriskScaleSpace::isMax2D(const int layer, const int x_layer, const int y_layer)
 {
   const cv::Mat& scores = pyramid_[layer].scores();
   const int scorescols = scores.cols;
@@ -1284,11 +1226,11 @@ BriskScaleSpace::isMax2D(const int layer, const int x_layer, const int y_layer)
 
 // 3D maximum refinement centered around (x_layer,y_layer)
 inline float
-BriskScaleSpace::refine3D(const int layer, const int x_layer, const int y_layer, float& x, float& y, float& scale,
+CBriskScaleSpace::refine3D(const int layer, const int x_layer, const int y_layer, float& x, float& y, float& scale,
                           bool& ismax) const
 {
   ismax = true;
-  const BriskLayer& thisLayer = pyramid_[layer];
+  const CBriskLayer& thisLayer = pyramid_[layer];
   const int center = thisLayer.getAgastScore(x_layer, y_layer, 1);
 
   // check and get above maximum:
@@ -1309,7 +1251,7 @@ BriskScaleSpace::refine3D(const int layer, const int x_layer, const int y_layer,
     if (layer == 0)
     {
       // guess the lower intra octave...
-      const BriskLayer& l = pyramid_[0];
+      const CBriskLayer& l = pyramid_[0];
       int s_0_0 = l.getAgastScore_5_8(x_layer - 1, y_layer - 1, 1);
       max_below = s_0_0;
       int s_1_0 = l.getAgastScore_5_8(x_layer, y_layer - 1, 1);
@@ -1442,7 +1384,7 @@ BriskScaleSpace::refine3D(const int layer, const int x_layer, const int y_layer,
 
 // return the maximum of score patches above or below
 inline float
-BriskScaleSpace::getScoreMaxAbove(const int layer, const int x_layer, const int y_layer, const int threshold,
+CBriskScaleSpace::getScoreMaxAbove(const int layer, const int x_layer, const int y_layer, const int threshold,
                                   bool& ismax, float& dx, float& dy) const
 {
 
@@ -1455,7 +1397,7 @@ BriskScaleSpace::getScoreMaxAbove(const int layer, const int x_layer, const int 
 
   // the layer above
   CV_Assert(layer + 1 < layers_);
-  const BriskLayer& layerAbove = pyramid_[layer + 1];
+  const CBriskLayer& layerAbove = pyramid_[layer + 1];
 
   if (layer % 2 == 0)
   {
@@ -1622,7 +1564,7 @@ BriskScaleSpace::getScoreMaxAbove(const int layer, const int x_layer, const int 
 }
 
 inline float
-BriskScaleSpace::getScoreMaxBelow(const int layer, const int x_layer, const int y_layer, const int threshold,
+CBriskScaleSpace::getScoreMaxBelow(const int layer, const int x_layer, const int y_layer, const int threshold,
                                   bool& ismax, float& dx, float& dy) const
 {
   ismax = false;
@@ -1651,7 +1593,7 @@ BriskScaleSpace::getScoreMaxBelow(const int layer, const int x_layer, const int 
 
   // the layer below
   CV_Assert(layer > 0);
-  const BriskLayer& layerBelow = pyramid_[layer - 1];
+  const CBriskLayer& layerBelow = pyramid_[layer - 1];
 
   // check the first row
   int max_x = (int)x_1 + 1;
@@ -1821,7 +1763,7 @@ BriskScaleSpace::getScoreMaxBelow(const int layer, const int x_layer, const int 
 }
 
 inline float
-BriskScaleSpace::refine1D(const float s_05, const float s0, const float s05, float& max) const
+CBriskScaleSpace::refine1D(const float s_05, const float s0, const float s05, float& max) const
 {
   int i_05 = int(1024.0 * s_05 + 0.5);
   int i0 = int(1024.0 * s0 + 0.5);
@@ -1867,7 +1809,7 @@ BriskScaleSpace::refine1D(const float s_05, const float s0, const float s05, flo
 }
 
 inline float
-BriskScaleSpace::refine1D_1(const float s_05, const float s0, const float s05, float& max) const
+CBriskScaleSpace::refine1D_1(const float s_05, const float s0, const float s05, float& max) const
 {
   int i_05 = int(1024.0 * s_05 + 0.5);
   int i0 = int(1024.0 * s0 + 0.5);
@@ -1913,7 +1855,7 @@ BriskScaleSpace::refine1D_1(const float s_05, const float s0, const float s05, f
 }
 
 inline float
-BriskScaleSpace::refine1D_2(const float s_05, const float s0, const float s05, float& max) const
+CBriskScaleSpace::refine1D_2(const float s_05, const float s0, const float s05, float& max) const
 {
   int i_05 = int(1024.0 * s_05 + 0.5);
   int i0 = int(1024.0 * s0 + 0.5);
@@ -1959,7 +1901,7 @@ BriskScaleSpace::refine1D_2(const float s_05, const float s0, const float s05, f
 }
 
 inline float
-BriskScaleSpace::subpixel2D(const int s_0_0, const int s_0_1, const int s_0_2, const int s_1_0, const int s_1_1,
+CBriskScaleSpace::subpixel2D(const int s_0_0, const int s_0_1, const int s_0_2, const int s_1_0, const int s_1_1,
                             const int s_1_2, const int s_2_0, const int s_2_1, const int s_2_2, float& delta_x,
                             float& delta_y) const
 {
@@ -2102,7 +2044,7 @@ BriskScaleSpace::subpixel2D(const int s_0_0, const int s_0_1, const int s_0_2, c
 }
 
 // construct a layer
-BriskLayer::BriskLayer(const cv::Mat& img_in, float scale_in, float offset_in)
+CBriskLayer::CBriskLayer(const cv::Mat& img_in, float scale_in, float offset_in)
 {
   img_ = img_in;
   scores_ = cv::Mat_<uchar>::zeros(img_in.rows, img_in.cols);
@@ -2115,7 +2057,7 @@ BriskLayer::BriskLayer(const cv::Mat& img_in, float scale_in, float offset_in)
   makeAgastOffsets(pixel_9_16_, (int)img_.step, AgastFeatureDetector::OAST_9_16);
 }
 // derive a layer
-BriskLayer::BriskLayer(const BriskLayer& layer, int mode)
+CBriskLayer::CBriskLayer(const CBriskLayer& layer, int mode)
 {
   if (mode == CommonParams::HALFSAMPLE)
   {
@@ -2140,7 +2082,7 @@ BriskLayer::BriskLayer(const BriskLayer& layer, int mode)
 // Agast
 // wraps the agast class
 void
-BriskLayer::getAgastPoints(int threshold, std::vector<KeyPoint>& keypoints)
+CBriskLayer::getAgastPoints(int threshold, std::vector<KeyPoint>& keypoints)
 {
   oast_9_16_->setThreshold(threshold);
   oast_9_16_->detect(img_, keypoints);
@@ -2153,7 +2095,7 @@ BriskLayer::getAgastPoints(int threshold, std::vector<KeyPoint>& keypoints)
 }
 
 inline int
-BriskLayer::getAgastScore(int x, int y, int threshold) const
+CBriskLayer::getAgastScore(int x, int y, int threshold) const
 {
   if (x < 3 || y < 3)
     return 0;
@@ -2171,7 +2113,7 @@ BriskLayer::getAgastScore(int x, int y, int threshold) const
 }
 
 inline int
-BriskLayer::getAgastScore_5_8(int x, int y, int threshold) const
+CBriskLayer::getAgastScore_5_8(int x, int y, int threshold) const
 {
   if (x < 2 || y < 2)
     return 0;
@@ -2184,7 +2126,7 @@ BriskLayer::getAgastScore_5_8(int x, int y, int threshold) const
 }
 
 inline int
-BriskLayer::getAgastScore(float xf, float yf, int threshold_in, float scale_in) const
+CBriskLayer::getAgastScore(float xf, float yf, int threshold_in, float scale_in) const
 {
   if (scale_in <= 1.0f)
   {
@@ -2218,7 +2160,7 @@ BriskLayer::getAgastScore(float xf, float yf, int threshold_in, float scale_in) 
 
 // access gray values (smoothed/interpolated)
 inline int
-BriskLayer::value(const cv::Mat& mat, float xf, float yf, float scale_in) const
+CBriskLayer::value(const cv::Mat& mat, float xf, float yf, float scale_in) const
 {
   CV_Assert(!mat.empty());
   // get the position
@@ -2324,7 +2266,7 @@ BriskLayer::value(const cv::Mat& mat, float xf, float yf, float scale_in) const
 
 // half sampling
 inline void
-BriskLayer::halfsample(const cv::Mat& srcimg, cv::Mat& dstimg)
+CBriskLayer::halfsample(const cv::Mat& srcimg, cv::Mat& dstimg)
 {
   // make sure the destination image is of the right size:
   CV_Assert(srcimg.cols / 2 == dstimg.cols);
@@ -2335,7 +2277,7 @@ BriskLayer::halfsample(const cv::Mat& srcimg, cv::Mat& dstimg)
 }
 
 inline void
-BriskLayer::twothirdsample(const cv::Mat& srcimg, cv::Mat& dstimg)
+CBriskLayer::twothirdsample(const cv::Mat& srcimg, cv::Mat& dstimg)
 {
   // make sure the destination image is of the right size:
   CV_Assert((srcimg.cols / 3) * 2 == dstimg.cols);
@@ -2344,22 +2286,14 @@ BriskLayer::twothirdsample(const cv::Mat& srcimg, cv::Mat& dstimg)
   resize(srcimg, dstimg, dstimg.size(), 0, 0, INTER_AREA);
 }
 
-Ptr<BRISK> BRISK::create(int thresh, int octaves, float patternScale)
-{
-    return makePtr<BRISK_Impl>(thresh, octaves, patternScale);
-}
-
 // custom setup
-Ptr<BRISK> BRISK::create(const std::vector<float> &radiusList, const std::vector<int> &numberList,
-                         float dMax, float dMin, const std::vector<int>& indexChange)
+Ptr<CBRISK> CBRISK::create(const std::vector<float> &patternPointsX,
+						   const std::vector<float> &patternPointsY,
+						   const std::vector<float> &patternPointsSigma,
+						   const std::vector<float> &pairs_i,
+						   const std::vector<float> &pairs_j)
 {
-    return makePtr<BRISK_Impl>(radiusList, numberList, dMax, dMin, indexChange);
-}
-
-// another custom setup
-Ptr<BRISK> BRISK::create(double dummy)
-{
-	return makePtr<BRISK_Impl>(dummy);
+	return makePtr<CBRISK_Impl>(patternPointsX, patternPointsY, patternPointsSigma, pairs_i, pairs_j);
 }
 
 

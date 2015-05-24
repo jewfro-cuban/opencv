@@ -242,6 +242,31 @@ public:
     @param indexChange index remapping of the bits. */
     CV_WRAP static Ptr<BRISK> create(const std::vector<float> &radiusList, const std::vector<int> &numberList,
         float dMax=5.85f, float dMin=8.2f, const std::vector<int>& indexChange=std::vector<int>());
+
+	/** @brief Another BRISK constructor
+	
+	@param dummy just testing another constructor signature
+	*/
+	CV_WRAP static Ptr<BRISK> create(double dummy);
+};
+
+/** @brief Class implementing the CBRISK keypoint detector and descriptor extractor.
+*/
+class CV_EXPORTS_W CBRISK : public Feature2D
+{
+public:
+	/** @brief The CBRISK constructor for a custom pattern
+
+	@param pointsPatternX
+	@param pointsPatternY
+	@param pointsPatternScale
+	@param pairs
+	*/
+	CV_WRAP static Ptr<CBRISK> create(const std::vector<float> &patternPointsX,
+									  const std::vector<float> &patternPointsY,
+									  const std::vector<float> &patternPointsSigma,
+									  const std::vector<float> &pairs_i,
+									  const std::vector<float> &pairs_j);
 };
 
 /** @brief Class implementing the ORB (*oriented BRIEF*) keypoint detector and descriptor extractor
