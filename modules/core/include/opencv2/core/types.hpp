@@ -776,8 +776,8 @@ template<> class DataType<CBriskPatternPoint>
 {
 public:
 	typedef CBriskPatternPoint      value_type;
-	typedef int         work_type;
-	typedef int         channel_type;
+	typedef int						work_type;
+	typedef int						channel_type;
 
 	enum {
 		generic_type = 0,
@@ -800,16 +800,16 @@ class CV_EXPORTS_W_SIMPLE CBriskPatternPointPair
 public:
 	CV_WRAP CBriskPatternPointPair();
 
-	CV_PROP_RW unsigned int i;
-	CV_PROP_RW unsigned int j;
+	CV_PROP_RW int i;
+	CV_PROP_RW int j;
 };
 
 template<> class DataType<CBriskPatternPointPair>
 {
 public:
 	typedef CBriskPatternPointPair      value_type;
-	typedef int         work_type;
-	typedef int         channel_type;
+	typedef int							work_type;
+	typedef int							channel_type;
 
 	enum {
 		generic_type = 0,

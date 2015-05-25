@@ -257,13 +257,11 @@ class CV_EXPORTS_W CBRISK : public Feature2D
 public:
 	/** @brief The CBRISK constructor for a custom pattern
 
-	@param pointsPatternX
-	@param pointsPatternY
-	@param pointsPatternScale
-	@param pairs
+	@param patternPoints
+	@param patternPointPairs
 	*/
-	CV_WRAP static Ptr<CBRISK> create(const std::vector<CBriskPatternPoint> &patternPoints,
-									  const std::vector<CBriskPatternPointPair> &patternPointPairs);
+	CV_WRAP static Ptr<CBRISK> create(const std::vector<CBriskPatternPoint>& patternPoints,
+									  const std::vector<CBriskPatternPointPair>& patternPointPairs);
 };
 
 /** @brief Class implementing the ORB (*oriented BRIEF*) keypoint detector and descriptor extractor

@@ -960,19 +960,6 @@ template<> struct pyopencvVecConverter<DMatch>
     }
 };
 
-template<> struct pyopencvVecConverter<DMatch2>
-{
-	static bool to(PyObject* obj, std::vector<DMatch2>& value, const ArgInfo info)
-	{
-		return pyopencv_to_generic_vec(obj, value, info);
-	}
-
-	static PyObject* from(const std::vector<DMatch2>& value)
-	{
-		return pyopencv_from_generic_vec(value);
-	}
-};
-
 template<> struct pyopencvVecConverter<String>
 {
     static bool to(PyObject* obj, std::vector<String>& value, const ArgInfo info)

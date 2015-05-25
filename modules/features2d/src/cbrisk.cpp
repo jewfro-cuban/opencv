@@ -56,8 +56,8 @@ namespace cv
 class CBRISK_Impl : public CBRISK
 {
 public:
-	explicit CBRISK_Impl(const std::vector<CBriskPatternPoint> &patternPoints,
-						 const std::vector<CBriskPatternPointPair> &patternPointPairs);
+	explicit CBRISK_Impl(const std::vector<CBriskPatternPoint>& patternPoints,
+						 const std::vector<CBriskPatternPointPair>& patternPointPairs);
 
 	virtual ~CBRISK_Impl();
 
@@ -76,18 +76,13 @@ public:
         return NORM_HAMMING;
     }
 
-    // call this to generate the kernel:
-    // circle of radius r (pixels), with n points;
-    // short pairings with dMax, long pairings with dMin
-    void generateKernel(const std::vector<float> &radiusList,
-        const std::vector<int> &numberList, float dMax=5.85f, float dMin=8.2f,
-        const std::vector<int> &indexChange=std::vector<int>());
-
     void detectAndCompute( InputArray image, InputArray mask,
                      CV_OUT std::vector<KeyPoint>& keypoints,
                      OutputArray descriptors,
                      bool useProvidedKeypoints );
 
+	// Get the pattern point around a keypoint as used for descriptor computation (i.e. incorporates the keypoint scale)
+	// std::vector<CBriskPatternPoint> getKeypointPatternPoints(const KeyPoint&);
 protected:
 
     void computeKeypointsNoOrientation(InputArray image, InputArray mask, std::vector<KeyPoint>& keypoints) const;
@@ -255,7 +250,7 @@ protected:
 const float CBRISK_Impl::basicSize_ = 12.0f;
 const unsigned int CBRISK_Impl::scales_ = 64;
 const float CBRISK_Impl::scalerange_ = 30.f; // 40->4 Octaves - else, this needs to be adjusted...
-const unsigned int CBRISK_Impl::n_rot_ = 0; // no rotation generation considered in CBrisk
+const unsigned int CBRISK_Impl::n_rot_ = 1; // Just 1 rotation considered in CBrisk (the one defined by the pattern - i.e. no rotation)
 
 const float CBriskScaleSpace::safetyFactor_ = 1.0f;
 const float CBriskScaleSpace::basicSize_ = 12.0f;
@@ -264,8 +259,8 @@ const float CBriskScaleSpace::basicSize_ = 12.0f;
 
 // Construct using custom pattern
 // TODO: preatify the function api - what are possible data type that pass in the cv-python binding ?
-CBRISK_Impl::CBRISK_Impl(const std::vector<CBriskPatternPoint> &patternPoints,
-						 const std::vector<CBriskPatternPointPair> &patternPointPairs)
+CBRISK_Impl::CBRISK_Impl(const std::vector<CBriskPatternPoint>& patternPoints,
+						 const std::vector<CBriskPatternPointPair>& patternPointPairs)
 {
 	// Construct a look-up table with different scales of basic pattern points
 	// No need to handle rotation since the CBrisk assumes the basic pattern is given in the right orientation
@@ -279,12 +274,12 @@ CBRISK_Impl::CBRISK_Impl(const std::vector<CBriskPatternPoint> &patternPoints,
 	// Make sure pattern point pairs have valid indices
 	for (std::vector<CBriskPatternPointPair>::const_iterator it = patternPointPairs.begin(); it != patternPointPairs.end(); it++)
 	{
-		CV_Assert(it->i > -1 && it->i < points_);
-		CV_Assert(it->j > -1 && it->j < points_);
+		CV_Assert(it->i > -1 && it->i < (int)points_);
+		CV_Assert(it->j > -1 && it->j < (int)points_);
 	}
 
 	// set up the patterns
-	patternPoints_ = new CBriskPatternPoint[points_ * scales_];
+	patternPoints_ = new CBriskPatternPoint[points_ * scales_ * n_rot_];
 	CBriskPatternPoint* patternIterator = patternPoints_;
 
 	// define the scale discretization:
@@ -509,6 +504,33 @@ CBRISK_Impl::detectAndCompute( InputArray _image, InputArray _mask, std::vector<
                                        useProvidedKeypoints);
 }
 
+
+//std::vector<CBriskPatternPoint> CBRISK_Impl::getKeypointPatternPoints(const KeyPoint& kp)
+//{
+//
+//	std::vector<CBriskPatternPoint> keypoint_pattern_points(points_);
+//
+//	static const float log2 = 0.693147180559945f;
+//	static const float lb_scalerange = (float)(std::log(scalerange_) / (log2));
+//	static const float basicSize06 = basicSize_ * 0.6f;
+//	unsigned int scale;
+//	scale = std::max((int)(scales_ / lb_scalerange * (std::log(kp.size / (basicSize06)) / log2) + 0.5), 0);
+//	// saturate
+//	if (scale >= scales_)
+//		scale = scales_ - 1;
+//
+//	const int zero_theta = 0;
+//	for (unsigned int i = 0; i < points_; i++)
+//	{
+//		const CBriskPatternPoint& briskPoint = patternPoints_[scale * n_rot_ * points_ + zero_theta * points_ + i];
+//		keypoint_pattern_points[i].x = briskPoint.x + kp.pt.x;
+//		keypoint_pattern_points[i].y = briskPoint.y + kp.pt.y;
+//		keypoint_pattern_points[i].sigma = briskPoint.sigma;
+//	}
+//	return keypoint_pattern_points;
+//}
+
+
 void
 CBRISK_Impl::computeDescriptorsAndOrOrientation(InputArray _image, InputArray _mask, std::vector<KeyPoint>& keypoints,
                                      OutputArray _descriptors, bool doDescriptors, bool doOrientation,
@@ -535,11 +557,11 @@ CBRISK_Impl::computeDescriptorsAndOrOrientation(InputArray _image, InputArray _m
   for (size_t k = 0; k < ksize; k++)
   {
     unsigned int scale;
-      scale = std::max((int) (scales_ / lb_scalerange * (std::log(keypoints[k].size / (basicSize06)) / log2) + 0.5), 0);
-      // saturate
-      if (scale >= scales_)
-        scale = scales_ - 1;
-      kscales[k] = scale;
+    scale = std::max((int) (scales_ / lb_scalerange * (std::log(keypoints[k].size / (basicSize06)) / log2) + 0.5), 0);
+    // saturate
+    if (scale >= scales_)
+      scale = scales_ - 1;
+    kscales[k] = scale;
     const int border = sizeList_[scale];
     const int border_x = image.cols - border;
     const int border_y = image.rows - border;
@@ -592,34 +614,17 @@ CBRISK_Impl::computeDescriptorsAndOrOrientation(InputArray _image, InputArray _m
     if (!doDescriptors)
       continue;
 
-    int theta;
-    if (kp.angle==-1)
-    {
-        // don't compute the gradient direction, just assign a rotation of 0°
-        theta = 0;
-    }
-    else
-    {
-        theta = (int) (n_rot_ * (kp.angle / (360.0)) + 0.5);
-        if (theta < 0)
-          theta += n_rot_;
-        if (theta >= int(n_rot_))
-          theta -= n_rot_;
-    }
-
-    if (kp.angle < 0)
-      kp.angle += 360.f;
-
     // now also extract the stuff for the actual direction:
     // let us compute the smoothed values
     int shifter = 0;
 
     //unsigned int mean=0;
     pvalues = _values;
-    // get the gray values in the rotated pattern
+    // get the gray values in the pattern (no additional rotation to the basic pattern)
+	const int zero_theta = 0; 
     for (unsigned int i = 0; i < points_; i++)
     {
-      *(pvalues++) = smoothedIntensity(image, _integral, x, y, scale, theta, i);
+		*(pvalues++) = smoothedIntensity(image, _integral, x, y, scale, zero_theta, i);
     }
 
     // now iterate through all the pairings
@@ -2156,8 +2161,8 @@ CBriskLayer::twothirdsample(const cv::Mat& srcimg, cv::Mat& dstimg)
 }
 
 // custom setup
-Ptr<CBRISK> CBRISK::create(const std::vector<CBriskPatternPoint> &patternPoints,
-						   const std::vector<CBriskPatternPointPair> &patternPointPairs)
+Ptr<CBRISK> CBRISK::create(const std::vector<CBriskPatternPoint>& patternPoints,
+						   const std::vector<CBriskPatternPointPair>& patternPointPairs)
 {
 	return makePtr<CBRISK_Impl>(patternPoints, patternPointPairs);
 }
