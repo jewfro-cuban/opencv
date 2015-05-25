@@ -262,11 +262,8 @@ public:
 	@param pointsPatternScale
 	@param pairs
 	*/
-	CV_WRAP static Ptr<CBRISK> create(const std::vector<float> &patternPointsX,
-									  const std::vector<float> &patternPointsY,
-									  const std::vector<float> &patternPointsSigma,
-									  const std::vector<float> &pairs_i,
-									  const std::vector<float> &pairs_j);
+	CV_WRAP static Ptr<CBRISK> create(const std::vector<CBriskPatternPoint> &patternPoints,
+									  const std::vector<CBriskPatternPointPair> &patternPointPairs);
 };
 
 /** @brief Class implementing the ORB (*oriented BRIEF*) keypoint detector and descriptor extractor

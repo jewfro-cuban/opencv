@@ -102,6 +102,8 @@ typedef std::vector<Mat> vector_Mat;
 typedef std::vector<DMatch> vector_DMatch;
 typedef std::vector<String> vector_String;
 typedef std::vector<Scalar> vector_Scalar;
+typedef std::vector<CBriskPatternPoint> vector_CBriskPatternPoint;
+typedef std::vector<CBriskPatternPointPair> vector_CBriskPatternPointPair;
 
 typedef std::vector<std::vector<char> > vector_vector_char;
 typedef std::vector<std::vector<Point> > vector_vector_Point;
@@ -956,6 +958,19 @@ template<> struct pyopencvVecConverter<DMatch>
     {
         return pyopencv_from_generic_vec(value);
     }
+};
+
+template<> struct pyopencvVecConverter<DMatch2>
+{
+	static bool to(PyObject* obj, std::vector<DMatch2>& value, const ArgInfo info)
+	{
+		return pyopencv_to_generic_vec(obj, value, info);
+	}
+
+	static PyObject* from(const std::vector<DMatch2>& value)
+	{
+		return pyopencv_from_generic_vec(value);
+	}
 };
 
 template<> struct pyopencvVecConverter<String>

@@ -691,11 +691,11 @@ BRISK_Impl::computeDescriptorsAndOrOrientation(InputArray _image, InputArray _ma
   for (size_t k = 0; k < ksize; k++)
   {
     unsigned int scale;
-      scale = std::max((int) (scales_ / lb_scalerange * (std::log(keypoints[k].size / (basicSize06)) / log2) + 0.5), 0);
-      // saturate
-      if (scale >= scales_)
-        scale = scales_ - 1;
-      kscales[k] = scale;
+    scale = std::max((int) (scales_ / lb_scalerange * (std::log(keypoints[k].size / (basicSize06)) / log2) + 0.5), 0);
+    // saturate
+    if (scale >= scales_)
+		scale = scales_ - 1;
+    kscales[k] = scale;
     const int border = sizeList_[scale];
     const int border_x = image.cols - border;
     const int border_y = image.rows - border;

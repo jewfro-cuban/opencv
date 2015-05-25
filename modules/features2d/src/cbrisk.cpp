@@ -56,11 +56,8 @@ namespace cv
 class CBRISK_Impl : public CBRISK
 {
 public:
-	explicit CBRISK_Impl(const std::vector<float> &patternPointsX,
-						 const std::vector<float> &patternPointsY,
-						 const std::vector<float> &patternPointsSigma,
-						 const std::vector<float> &pairs_i,
-						 const std::vector<float> &pairs_j);
+	explicit CBRISK_Impl(const std::vector<CBriskPatternPoint> &patternPoints,
+						 const std::vector<CBriskPatternPointPair> &patternPointPairs);
 
 	virtual ~CBRISK_Impl();
 
@@ -102,28 +99,12 @@ protected:
     CV_PROP_RW int threshold;
     CV_PROP_RW int octaves;
 
-    // some helper structures for the Brisk pattern representation
-    struct BriskPatternPoint{
-        float x;         // x coordinate relative to center
-        float y;         // x coordinate relative to center
-        float sigma;     // Gaussian smoothing sigma
-    };
-    struct BriskShortPair{
-        unsigned int i;  // index of the first pattern point
-        unsigned int j;  // index of other pattern point
-    };
-    struct BriskLongPair{
-        unsigned int i;  // index of the first pattern point
-        unsigned int j;  // index of other pattern point
-        int weighted_dx; // 1024.0/dx
-        int weighted_dy; // 1024.0/dy
-    };
     inline int smoothedIntensity(const cv::Mat& image,
                 const cv::Mat& integral,const float key_x,
                 const float key_y, const unsigned int scale,
                 const unsigned int rot, const unsigned int point) const;
     // pattern properties
-    BriskPatternPoint* patternPoints_;     //[i][rotation][scale]
+    CBriskPatternPoint* patternPoints_;     //[i][rotation][scale]
     unsigned int points_;                 // total number of collocation points
     float* scaleList_;                     // lists the scaling per scale index [scale]
     unsigned int* sizeList_;             // lists the total pattern size per scale index [scale]
@@ -133,12 +114,8 @@ protected:
 
     // pairs
     int strings_;                        // number of uchars the descriptor consists of
-    float dMax_;                         // short pair maximum distance
-    float dMin_;                         // long pair maximum distance
-    BriskShortPair* shortPairs_;         // d<_dMax
-    BriskLongPair* longPairs_;             // d>_dMin
-    unsigned int noShortPairs_;         // number of shortParis
-    unsigned int noLongPairs_;             // number of longParis
+	CBriskPatternPointPair* pairs_;      // pairs to be used to compute the descriptor
+    unsigned int num_pairs_;              // number of pairs_
 
     // general
     static const float basicSize_;
@@ -278,7 +255,7 @@ protected:
 const float CBRISK_Impl::basicSize_ = 12.0f;
 const unsigned int CBRISK_Impl::scales_ = 64;
 const float CBRISK_Impl::scalerange_ = 30.f; // 40->4 Octaves - else, this needs to be adjusted...
-const unsigned int CBRISK_Impl::n_rot_ = 1024; // discretization of the rotation look-up
+const unsigned int CBRISK_Impl::n_rot_ = 0; // no rotation generation considered in CBrisk
 
 const float CBriskScaleSpace::safetyFactor_ = 1.0f;
 const float CBriskScaleSpace::basicSize_ = 12.0f;
@@ -287,141 +264,67 @@ const float CBriskScaleSpace::basicSize_ = 12.0f;
 
 // Construct using custom pattern
 // TODO: preatify the function api - what are possible data type that pass in the cv-python binding ?
-CBRISK_Impl::CBRISK_Impl(const std::vector<float> &patternPointsX,
-						 const std::vector<float> &patternPointsY,
-						 const std::vector<float> &patternPointsSigma,
-						 const std::vector<float> &pairs_i,
-						 const std::vector<float> &pairs_j)
+CBRISK_Impl::CBRISK_Impl(const std::vector<CBriskPatternPoint> &patternPoints,
+						 const std::vector<CBriskPatternPointPair> &patternPointPairs)
 {
-  //generateKernel(radiusList, numberList, dMax, dMin, indexChange);
-  threshold = 20;
-  octaves = 3;
-}
+	// Construct a look-up table with different scales of basic pattern points
+	// No need to handle rotation since the CBrisk assumes the basic pattern is given in the right orientation
 
-void
-CBRISK_Impl::generateKernel(const std::vector<float> &radiusList,
-                           const std::vector<int> &numberList,
-                           float dMax, float dMin,
-                           const std::vector<int>& _indexChange)
-{
-  std::vector<int> indexChange = _indexChange;
-  dMax_ = dMax;
-  dMin_ = dMin;
+	// TODO: add theshold and octaves as input arguments
+	threshold = 20;
+	octaves = 3;
 
-  // get the total number of points
-  const int rings = (int)radiusList.size();
-  CV_Assert(radiusList.size() != 0 && radiusList.size() == numberList.size());
-  points_ = 0; // remember the total number of points
-  for (int ring = 0; ring < rings; ring++)
-  {
-    points_ += numberList[ring];
-  }
-  // set up the patterns
-  patternPoints_ = new BriskPatternPoint[points_ * scales_ * n_rot_];
-  BriskPatternPoint* patternIterator = patternPoints_;
+	// Get number of points
+	points_ = (unsigned int)patternPoints.size();
+	// Make sure pattern point pairs have valid indices
+	for (std::vector<CBriskPatternPointPair>::const_iterator it = patternPointPairs.begin(); it != patternPointPairs.end(); it++)
+	{
+		CV_Assert(it->i > -1 && it->i < points_);
+		CV_Assert(it->j > -1 && it->j < points_);
+	}
 
-  // define the scale discretization:
-  static const float lb_scale = (float)(std::log(scalerange_) / std::log(2.0));
-  static const float lb_scale_step = lb_scale / (scales_);
+	// set up the patterns
+	patternPoints_ = new CBriskPatternPoint[points_ * scales_];
+	CBriskPatternPoint* patternIterator = patternPoints_;
 
-  scaleList_ = new float[scales_];
-  sizeList_ = new unsigned int[scales_];
+	// define the scale discretization:
+	static const float lb_scale = (float)(std::log(scalerange_) / std::log(2.0));
+	static const float lb_scale_step = lb_scale / (scales_);
 
-  const float sigma_scale = 1.3f;
+	scaleList_ = new float[scales_];
+	sizeList_ = new unsigned int[scales_];
 
-  for (unsigned int scale = 0; scale < scales_; ++scale)
-  {
-    scaleList_[scale] = (float)std::pow((double) 2.0, (double) (scale * lb_scale_step));
-    sizeList_[scale] = 0;
+	for (unsigned int scale = 0; scale < scales_; ++scale)
+	{
+		scaleList_[scale] = (float)std::pow((double) 2.0, (double)(scale * lb_scale_step));
+		sizeList_[scale] = 0;
 
-    // generate the pattern points look-up
-    double alpha, theta;
-    for (size_t rot = 0; rot < n_rot_; ++rot)
-    {
-      theta = double(rot) * 2 * CV_PI / double(n_rot_); // this is the rotation of the feature
-      for (int ring = 0; ring < rings; ++ring)
-      {
-        for (int num = 0; num < numberList[ring]; ++num)
-        {
-          // the actual coordinates on the circle
-          alpha = (double(num)) * 2 * CV_PI / double(numberList[ring]);
-          patternIterator->x = (float)(scaleList_[scale] * radiusList[ring] * cos(alpha + theta)); // feature rotation plus angle of the point
-          patternIterator->y = (float)(scaleList_[scale] * radiusList[ring] * sin(alpha + theta));
-          // and the gaussian kernel sigma
-          if (ring == 0)
-          {
-            patternIterator->sigma = sigma_scale * scaleList_[scale] * 0.5f;
-          }
-          else
-          {
-            patternIterator->sigma = (float)(sigma_scale * scaleList_[scale] * (double(radiusList[ring]))
-                                     * sin(CV_PI / numberList[ring]));
-          }
-          // adapt the sizeList if necessary
-          const unsigned int size = cvCeil(((scaleList_[scale] * radiusList[ring]) + patternIterator->sigma)) + 1;
-          if (sizeList_[scale] < size)
-          {
-            sizeList_[scale] = size;
-          }
+		for (std::vector<CBriskPatternPoint>::const_iterator it = patternPoints.begin(); it != patternPoints.end(); it++)
+		{
+			patternIterator->x = scaleList_[scale] * it->x;
+			patternIterator->y = scaleList_[scale] * it->y;
+			patternIterator->sigma = scaleList_[scale] * it->sigma;
+			
+			// adapt the sizeList if necessary
+			// TODO: change the way size (radius) is computed to a more efficient way (consider adding a radius field or size into the PatternPoint struct)
+			float r = sqrt(patternIterator->x * patternIterator->x + patternIterator->y * patternIterator->x);
+			const unsigned int size = cvCeil(((scaleList_[scale] * r) + patternIterator->sigma)) + 1;
+			if (sizeList_[scale] < size)
+			{
+				sizeList_[scale] = size;
+			}
 
-          // increment the iterator
-          ++patternIterator;
-        }
-      }
-    }
-  }
+			// increment the iterator
+			++patternIterator;
+		}
+	}
 
-  // now also generate pairings
-  shortPairs_ = new BriskShortPair[points_ * (points_ - 1) / 2];
-  longPairs_ = new BriskLongPair[points_ * (points_ - 1) / 2];
-  noShortPairs_ = 0;
-  noLongPairs_ = 0;
-
-  // fill indexChange with 0..n if empty
-  unsigned int indSize = (unsigned int)indexChange.size();
-  if (indSize == 0)
-  {
-    indexChange.resize(points_ * (points_ - 1) / 2);
-    indSize = (unsigned int)indexChange.size();
-
-    for (unsigned int i = 0; i < indSize; i++)
-      indexChange[i] = i;
-  }
-  const float dMin_sq = dMin_ * dMin_;
-  const float dMax_sq = dMax_ * dMax_;
-  for (unsigned int i = 1; i < points_; i++)
-  {
-    for (unsigned int j = 0; j < i; j++)
-    { //(find all the pairs)
-      // point pair distance:
-      const float dx = patternPoints_[j].x - patternPoints_[i].x;
-      const float dy = patternPoints_[j].y - patternPoints_[i].y;
-      const float norm_sq = (dx * dx + dy * dy);
-      if (norm_sq > dMin_sq)
-      {
-        // save to long pairs
-        BriskLongPair& longPair = longPairs_[noLongPairs_];
-        longPair.weighted_dx = int((dx / (norm_sq)) * 2048.0 + 0.5);
-        longPair.weighted_dy = int((dy / (norm_sq)) * 2048.0 + 0.5);
-        longPair.i = i;
-        longPair.j = j;
-        ++noLongPairs_;
-      }
-      else if (norm_sq < dMax_sq)
-      {
-        // save to short pairs
-        CV_Assert(noShortPairs_ < indSize);
-        // make sure the user passes something sensible
-        BriskShortPair& shortPair = shortPairs_[indexChange[noShortPairs_]];
-        shortPair.j = j;
-        shortPair.i = i;
-        ++noShortPairs_;
-      }
-    }
-  }
-
-  // no bits:
-  strings_ = (int) ceil((float(noShortPairs_)) / 128.0) * 4 * 4;
+	// now also set pairings
+	num_pairs_ = (unsigned int)patternPointPairs.size();
+	pairs_ = new CBriskPatternPointPair[num_pairs_];
+	
+	// no bits:
+	strings_ = (int)ceil((float(num_pairs_)) / 128.0) * 4 * 4;
 }
 
 
@@ -433,7 +336,7 @@ CBRISK_Impl::smoothedIntensity(const cv::Mat& image, const cv::Mat& integral, co
 {
 
   // get the float position
-  const BriskPatternPoint& briskPoint = patternPoints_[scale * n_rot_ * points_ + rot * points_ + point];
+  const CBriskPatternPoint& briskPoint = patternPoints_[scale * n_rot_ * points_ + rot * points_ + point];
   const float xf = briskPoint.x + key_x;
   const float yf = briskPoint.y + key_y;
   const int x = int(xf);
@@ -617,7 +520,6 @@ CBRISK_Impl::computeDescriptorsAndOrOrientation(InputArray _image, InputArray _m
 
   if (!useProvidedKeypoints)
   {
-    doOrientation = true;
     computeKeypointsNoOrientation(_image, _mask, keypoints);
   }
 
@@ -687,38 +589,6 @@ CBRISK_Impl::computeDescriptorsAndOrOrientation(InputArray _image, InputArray _m
     const float& x = kp.pt.x;
     const float& y = kp.pt.y;
 
-    if (doOrientation)
-    {
-        // get the gray values in the unrotated pattern
-        for (unsigned int i = 0; i < points_; i++)
-        {
-          *(pvalues++) = smoothedIntensity(image, _integral, x, y, scale, 0, i);
-        }
-
-        int direction0 = 0;
-        int direction1 = 0;
-        // now iterate through the long pairings
-        const BriskLongPair* max = longPairs_ + noLongPairs_;
-        for (BriskLongPair* iter = longPairs_; iter < max; ++iter)
-        {
-          t1 = *(_values + iter->i);
-          t2 = *(_values + iter->j);
-          const int delta_t = (t1 - t2);
-          // update the direction:
-          const int tmp0 = delta_t * (iter->weighted_dx) / 1024;
-          const int tmp1 = delta_t * (iter->weighted_dy) / 1024;
-          direction0 += tmp0;
-          direction1 += tmp1;
-        }
-        kp.angle = (float)(atan2((float) direction1, (float) direction0) / CV_PI * 180.0);
-
-        if (!doDescriptors)
-        {
-          if (kp.angle < 0)
-            kp.angle += 360.f;
-        }
-    }
-
     if (!doDescriptors)
       continue;
 
@@ -754,8 +624,8 @@ CBRISK_Impl::computeDescriptorsAndOrOrientation(InputArray _image, InputArray _m
 
     // now iterate through all the pairings
     unsigned int* ptr2 = (unsigned int*) ptr;
-    const BriskShortPair* max = shortPairs_ + noShortPairs_;
-    for (BriskShortPair* iter = shortPairs_; iter < max; ++iter)
+    const CBriskPatternPointPair* max = pairs_ + num_pairs_;
+	for (CBriskPatternPointPair* iter = pairs_; iter < max; ++iter)
     {
       t1 = *(_values + iter->i);
       t2 = *(_values + iter->j);
@@ -784,8 +654,7 @@ CBRISK_Impl::computeDescriptorsAndOrOrientation(InputArray _image, InputArray _m
 CBRISK_Impl::~CBRISK_Impl()
 {
   delete[] patternPoints_;
-  delete[] shortPairs_;
-  delete[] longPairs_;
+  delete[] pairs_;
   delete[] scaleList_;
   delete[] sizeList_;
 }
@@ -2287,13 +2156,10 @@ CBriskLayer::twothirdsample(const cv::Mat& srcimg, cv::Mat& dstimg)
 }
 
 // custom setup
-Ptr<CBRISK> CBRISK::create(const std::vector<float> &patternPointsX,
-						   const std::vector<float> &patternPointsY,
-						   const std::vector<float> &patternPointsSigma,
-						   const std::vector<float> &pairs_i,
-						   const std::vector<float> &pairs_j)
+Ptr<CBRISK> CBRISK::create(const std::vector<CBriskPatternPoint> &patternPoints,
+						   const std::vector<CBriskPatternPointPair> &patternPointPairs)
 {
-	return makePtr<CBRISK_Impl>(patternPointsX, patternPointsY, patternPointsSigma, pairs_i, pairs_j);
+	return makePtr<CBRISK_Impl>(patternPoints, patternPointPairs);
 }
 
 
