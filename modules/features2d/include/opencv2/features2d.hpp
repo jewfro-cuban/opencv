@@ -260,8 +260,22 @@ public:
 	@param patternPoints
 	@param patternPointPairs
 	*/
-	CV_WRAP static Ptr<CBRISK> create(const std::vector<CBriskPatternPoint>& patternPoints,
-									  const std::vector<CBriskPatternPointPair>& patternPointPairs);
+	CV_WRAP static Ptr<CBRISK> create(const std::vector<float>& x,
+									  const std::vector<float>& y,
+									  const std::vector<float>& sigma,
+									  const std::vector<int>& i,
+									  const std::vector<int>& j);
+
+	/** @brief get the pattern points that are actually used in the descriptor extraction for the given keypoint.
+		 Useful for debugging.
+
+	@param kp - input keypoint class
+	@param x, y, z - output of the pattern points x, y, sigma values
+	*/
+	virtual CV_WRAP void getKeypointPatternPoints(const KeyPoint& kp,
+		CV_OUT std::vector<float>& x,
+		CV_OUT std::vector<float>& y,
+		CV_OUT std::vector<float>& sigma) {};
 };
 
 /** @brief Class implementing the ORB (*oriented BRIEF*) keypoint detector and descriptor extractor

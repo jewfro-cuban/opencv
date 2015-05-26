@@ -715,7 +715,6 @@ public:
 };
 
 
-
 //////////////////////////////// DMatch /////////////////////////////////
 
 /** @brief Class for matching keypoint descriptors
@@ -756,72 +755,6 @@ public:
 
     typedef Vec<channel_type, channels> vec_type;
 };
-
-//////////////////////////////// CBriskPatternPoint /////////////////////////////////
-
-/** @brief Class for customized brisk pattern point
-
-*/
-class CV_EXPORTS_W_SIMPLE CBriskPatternPoint
-{
-public:
-	CV_WRAP CBriskPatternPoint();
-	
-	CV_PROP_RW float x; 
-	CV_PROP_RW float y; 
-	CV_PROP_RW float sigma;   
-};
-
-template<> class DataType<CBriskPatternPoint>
-{
-public:
-	typedef CBriskPatternPoint      value_type;
-	typedef int						work_type;
-	typedef int						channel_type;
-
-	enum {
-		generic_type = 0,
-		depth = DataType<channel_type>::depth,
-		channels = (int)(sizeof(value_type) / sizeof(channel_type)), // 4
-		fmt = DataType<channel_type>::fmt + ((channels - 1) << 8),
-		type = CV_MAKETYPE(depth, channels)
-	};
-
-	typedef Vec<channel_type, channels> vec_type;
-};
-
-//////////////////////////////// CBriskPatternPointPair /////////////////////////////////
-
-/** @brief Class for customized brisk pattern point pair
-
-*/
-class CV_EXPORTS_W_SIMPLE CBriskPatternPointPair
-{
-public:
-	CV_WRAP CBriskPatternPointPair();
-
-	CV_PROP_RW int i;
-	CV_PROP_RW int j;
-};
-
-template<> class DataType<CBriskPatternPointPair>
-{
-public:
-	typedef CBriskPatternPointPair      value_type;
-	typedef int							work_type;
-	typedef int							channel_type;
-
-	enum {
-		generic_type = 0,
-		depth = DataType<channel_type>::depth,
-		channels = (int)(sizeof(value_type) / sizeof(channel_type)), // 4
-		fmt = DataType<channel_type>::fmt + ((channels - 1) << 8),
-		type = CV_MAKETYPE(depth, channels)
-	};
-
-	typedef Vec<channel_type, channels> vec_type;
-};
-
 
 ///////////////////////////// TermCriteria //////////////////////////////
 
@@ -2268,19 +2201,6 @@ bool DMatch::operator < (const DMatch &m) const
 {
     return distance < m.distance;
 }
-
-///////////////////////////////// CBriskPatternPoint ////////////////////////////////
-
-inline
-CBriskPatternPoint::CBriskPatternPoint()
-: x(0.0), y(0.0), sigma(0.0) {}
-
-///////////////////////////////// CBriskPatternPointPair ////////////////////////////////
-
-inline
-CBriskPatternPointPair::CBriskPatternPointPair()
-: i(-1), j(-1) {}
-
 
 
 ////////////////////////////// TermCriteria /////////////////////////////
