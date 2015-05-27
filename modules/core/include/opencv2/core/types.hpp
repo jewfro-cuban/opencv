@@ -756,6 +756,84 @@ public:
     typedef Vec<channel_type, channels> vec_type;
 };
 
+
+/////////////////////////////// CBriskPatternPoint ////////////////////////////////
+
+/** @brief Data structure for customized brisk pattern point.
+
+*/
+class CV_EXPORTS_W_SIMPLE CBriskPatternPoint
+{
+public:
+    //! the default constructor
+	CV_WRAP CBriskPatternPoint() : x(0), y(0), sigma(0) {};
+    /**
+    @param x pattern point x coord
+    @param y pattern point y coord
+    @param sigma pattern point radius
+    */
+
+	CV_PROP_RW float x;
+	CV_PROP_RW float y;
+	CV_PROP_RW float sigma;
+};
+
+template<> class DataType<CBriskPatternPoint>
+{
+public:
+	typedef CBriskPatternPoint  value_type;
+    typedef float				work_type;
+    typedef float				channel_type;
+
+    enum { generic_type = 0,
+           depth        = DataType<channel_type>::depth,
+           channels     = (int)(sizeof(value_type)/sizeof(channel_type)), // 7
+           fmt          = DataType<channel_type>::fmt + ((channels - 1) << 8),
+           type         = CV_MAKETYPE(depth, channels)
+         };
+
+    typedef Vec<channel_type, channels> vec_type;
+};
+
+/////////////////////////////// CBriskPatternPointPair ////////////////////////////////
+
+/** @brief Data structure for customized brisk pattern point.
+
+*/
+class CV_EXPORTS_W_SIMPLE CBriskPatternPointPair
+{
+public:
+	//! the default constructor
+	CV_WRAP CBriskPatternPointPair() : i(-1), j(-1) {};
+	/**
+	@param i intex of point in pair
+	@param j intex of point in pair
+	@param sigma pattern point radius
+	*/
+
+	CV_PROP_RW int i;
+	CV_PROP_RW int j;
+};
+
+template<> class DataType<CBriskPatternPointPair>
+{
+public:
+	typedef CBriskPatternPointPair  value_type;
+	typedef float				work_type;
+	typedef float				channel_type;
+
+	enum {
+		generic_type = 0,
+		depth = DataType<channel_type>::depth,
+		channels = (int)(sizeof(value_type) / sizeof(channel_type)), // 7
+		fmt = DataType<channel_type>::fmt + ((channels - 1) << 8),
+		type = CV_MAKETYPE(depth, channels)
+	};
+
+	typedef Vec<channel_type, channels> vec_type;
+};
+
+
 ///////////////////////////// TermCriteria //////////////////////////////
 
 /** @brief The class defining termination criteria for iterative algorithms.
